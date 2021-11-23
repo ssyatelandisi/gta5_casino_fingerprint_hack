@@ -1,3 +1,6 @@
+"""
+通过实时截屏对比左侧8个指纹切片和右侧指纹图匹配度的方法
+"""
 from winsound import Beep
 from PIL import ImageGrab
 import keyboard
@@ -12,7 +15,7 @@ import numpy as np
 class FingerprinterHack:
     def __init__(self, mode="1"):
         effest = 3
-        self.__x0y = (
+        self.__xOy = (
             (481 + effest, 277 + effest, 587 - effest, 383 - effest),
             (625 + effest, 277 + effest, 731 - effest, 383 - effest),
             (481 + effest, 421 + effest, 587 - effest, 527 - effest),
@@ -24,9 +27,10 @@ class FingerprinterHack:
         )
         self.__mode = mode
         self.__onoff = False
+        self.__confirmationImg = "confirmation.png"
         self.__key_press_delay = 0.05
         self.__key_release_delay = 0.05
-        self.__confirmationImg = "confirmation.png"
+        self.__save_screenshot = False
         self.__currentGroupIndex = 99
         self.__pos = list()
         self.__threadPool = list()
@@ -55,6 +59,14 @@ class FingerprinterHack:
     def confirmationImg(self, imgPath: str):
         self.__confirmationImg = imgPath
 
+    @property
+    def save_screenshot(self):
+        return self.__save_screenshot
+
+    @save_screenshot.setter
+    def save_screenshot(self, status: bool):
+        self.__save_screenshot = status
+
     def onoff(self, status: bool):
         """设置开关状态\n
         status bool: True开启|False关闭\n
@@ -73,7 +85,10 @@ class FingerprinterHack:
                 continue
             elif self.mathing_confirmation() < 0.1:
                 self.__currentGroupIndex = 0
-                self.cv2screen(cv2.cvtColor(np.asanyarray(ImageGrab.grab()), cv2.COLOR_RGB2GRAY))
+                im = ImageGrab.grab()
+                if self.__save_screenshot is True:
+                    im.save(f"screenshot{self.__currentGroupIndex}.png")
+                self.cv2screen(cv2.cvtColor(np.asanyarray(im), cv2.COLOR_RGB2GRAY))
                 for pos in self.__pos:
                     dis = pos - self.__currentGroupIndex
                     self.send_key("s", dis // 2)
@@ -85,24 +100,6 @@ class FingerprinterHack:
                     self.onoff(False)
                 else:
                     time.sleep(4.15)
-
-    def get_distance(self, xOy: "tuple[float, float]") -> float:
-        """计算坐标点到基点的距离\n
-        xOy tuple[float, float]: (x, y)\n
-        return float: 距离\n
-        """
-        return ((xOy[0] - 475) ** 2 + (xOy[1] - 171) ** 2) ** 0.5
-
-    def get_position(self, distance: float):
-        """获取0-8个格子位置索引\n
-        distance float: 距离\n
-        return int: 格子位置索引\n
-        """
-        for i in range(8):
-            if self.__positionsRange[i][0] <= distance <= self.__positionsRange[i][1]:
-                return i
-            else:
-                continue
 
     def send_key(self, key, count: int = 1):
         """发送键盘按键指令\n
@@ -121,7 +118,7 @@ class FingerprinterHack:
         fingerprint: 指纹图序列\n
         index int: 格子位置索引\n
         """
-        template_src = im_src[self.__x0y[index][1] : self.__x0y[index][3], self.__x0y[index][0] : self.__x0y[index][2]]
+        template_src = im_src[self.__xOy[index][1] : self.__xOy[index][3], self.__xOy[index][0] : self.__xOy[index][2]]
         template = cv2.resize(template_src, [129, 129])
         minV = cv2.minMaxLoc(cv2.matchTemplate(fingerprint, template, cv2.TM_SQDIFF_NORMED))[0]
         if minV < 0.3:
@@ -134,17 +131,17 @@ class FingerprinterHack:
         res = cv2.matchTemplate(im, templ, cv2.TM_SQDIFF_NORMED)
         return cv2.minMaxLoc(res)[0]
 
-    def cv2screen(self, screeshot):
+    def cv2screen(self, screenshot):
         """cv2多线程扫描\n
-        screeshot numpy.array: 序列化的图片\n
+        screenshot numpy.array: 序列化的图片\n
         """
-        fingerprint = screeshot[130:690, 950:1340]
+        fingerprint = screenshot[130:690, 950:1340]
         self.__pos = list()
         for i in range(8):
             th = threading.Thread(
                 target=self.mathing_fingerprint,
                 args=(
-                    screeshot,
+                    screenshot,
                     fingerprint,
                     i,
                 ),
@@ -170,11 +167,6 @@ def get_input():
 
 
 def main():
-    config = configparser.ConfigParser()
-    config.read("config.ini", encoding="utf-8")
-    key_press_delay = config.getint("setting", "key_press_delay")
-    key_release_delay = config.getint("setting", "key_release_delay")
-    confirmationImg = config.get("setting", "confirmation_image")
     while True:
         mode = get_input()
         if mode in ("1", "2"):
@@ -183,9 +175,19 @@ def main():
         else:
             print(f"输入有误,[{mode}]")
     fgh = FingerprinterHack(mode)
-    fgh.key_press_delay = key_press_delay
-    fgh.key_release_delay = key_release_delay
-    fgh.confirmationImg = confirmationImg
+    try:
+        config = configparser.ConfigParser()
+        config.read("config.ini", encoding="utf-8")
+        key_press_delay = config.getint("setting", "key_press_delay")
+        key_release_delay = config.getint("setting", "key_release_delay")
+        confirmationImg = config.get("setting", "confirmation_image")
+        save_screenshot = config.getboolean("setting", "save_screenshot")
+        fgh.key_press_delay = key_press_delay
+        fgh.key_release_delay = key_release_delay
+        fgh.confirmationImg = confirmationImg
+        fgh.save_screenshot = save_screenshot
+    except Exception as e:
+        print(e)
     fgh.run()
     print(
         """需要全屏1920*1080分辨率模式\n
