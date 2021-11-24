@@ -13,6 +13,17 @@ import numpy as np
 import pickle
 
 
+class Data:
+    def __init__(self) -> None:
+        self.imgTuple = tuple()
+        self.positionsRange = tuple()
+        self.base = (486, 288)
+        self.effect = 140
+        self.size = 119
+        self.In = 7  # 裁剪内缩
+        self.size_on = 135  # 放大后大小
+
+
 class FingerprinterHack:
     def __init__(self, mode="1"):
         self.__mode = mode
@@ -33,8 +44,8 @@ class FingerprinterHack:
         self.__currentGroupIndex = 99
         self.__pos = []
         self.__threadPool = []
-        with open("slices.dat", "rb") as pickleFile:
-            self.__pics = pickle.load(pickleFile)
+        self.__pics = ()
+        self.__region = ()
 
     @property
     def key_press_delay(self):
@@ -60,6 +71,30 @@ class FingerprinterHack:
     def save_screenshot(self, status: bool):
         self.__save_screenshot = status
 
+    @property
+    def pics(self):
+        return self.__pics
+
+    @pics.setter
+    def pics(self, value: tuple):
+        self.__pics = value
+
+    @property
+    def region(self):
+        return self.__region
+
+    @region.setter
+    def region(self, value: tuple):
+        self.__region = value
+
+    @property
+    def positionsRange(self):
+        return self.__positionsRange
+
+    @positionsRange.setter
+    def positionsRange(self, value: tuple):
+        self.__positionsRange = value
+
     def onoff(self, status: bool):
         """设置开关状态\n
         status bool: True开启|False关闭\n
@@ -80,16 +115,13 @@ class FingerprinterHack:
                 self.__pos.clear()
                 self.__threadPool.clear()
                 img = cv2.cvtColor(
-                    np.asanyarray(ImageGrab.grab(bbox=(475, 271, 737, 821))),
+                    np.asanyarray(ImageGrab.grab(bbox=self.__region)),
                     cv2.COLOR_RGB2GRAY,
                 )
                 for groupIndex in range(4):
                     th = threading.Thread(
                         target=self.compare_group,
-                        args=(
-                            img,
-                            groupIndex,
-                        ),
+                        args=(img, groupIndex),
                     )
                     self.__threadPool.append(th)
                     th.start()
@@ -161,13 +193,13 @@ class FingerprinterHack:
 
     def get_position(self, loc: "tuple[float, float]"):
         """获取0-8个格子位置索引\n
-        loc tuple[float, float]: 坐标位置\n
+        loc tuple[x: float, y: float]: 坐标位置\n
         return int: 格子位置索引\n
         """
         for i in range(8):
             if (
-                self.__positionsRange[i][0][0] <= loc[0] < self.__positionsRange[i][1][0]
-                and self.__positionsRange[i][0][1] <= loc[1] < self.__positionsRange[i][1][1]
+                self.__positionsRange[i][0][0] <= loc[0] < self.__positionsRange[i][0][1]
+                and self.__positionsRange[i][1][0] <= loc[1] < self.__positionsRange[i][1][1]
             ):
                 return i
             else:
@@ -208,17 +240,29 @@ def main():
             print(f"输入有误,[{mode}]")
     fgh = FingerprinterHack(mode)
     try:
+        with open("config.ini", "r", encoding="utf-8") as f:
+            configEncoding = "utf-8"
+    except:
+        with open("config.ini", "r", encoding="gbk") as f:
+            configEncoding = "gbk"
+    try:
         config = configparser.ConfigParser()
-        config.read("config.ini", encoding="utf-8")
+        config.read("config.ini", encoding=configEncoding)
         key_press_delay = config.getint("setting", "key_press_delay")
         key_release_delay = config.getint("setting", "key_release_delay")
         save_screenshot = config.getboolean("setting", "save_screenshot")
+        config_data = config.get("setting", "data")
         fgh.key_press_delay = key_press_delay
         fgh.key_release_delay = key_release_delay
         fgh.save_screenshot = save_screenshot
+        with open(config_data, "rb") as f:
+            data = pickle.load(f)
+        fgh.pics = data.imgTuple
+        fgh.positionsRange = data.positionsRange
+        fgh.region = data.region
+        fgh.run()
     except Exception as e:
         print(e)
-    fgh.run()
     print(
         """需要全屏1920*1080分辨率模式\n
     \r按 F 执行扫描屏幕

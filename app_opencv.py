@@ -127,7 +127,7 @@ class FingerprinterHack:
     def mathing_confirmation(self):
         """当前截屏判断"""
         templ = cv2.imread(self.__confirmationImg, 0)
-        im = cv2.cvtColor(np.asanyarray(ImageGrab.grab()), cv2.COLOR_RGB2GRAY)[133:178, 470:558]
+        im = cv2.cvtColor(np.asanyarray(ImageGrab.grab()), cv2.COLOR_RGB2GRAY)[133:163, 470:515]
         res = cv2.matchTemplate(im, templ, cv2.TM_SQDIFF_NORMED)
         return cv2.minMaxLoc(res)[0]
 
@@ -176,8 +176,14 @@ def main():
             print(f"输入有误,[{mode}]")
     fgh = FingerprinterHack(mode)
     try:
+        with open("config.ini", "r", encoding="utf-8") as f:
+            configEncoding = "utf-8"
+    except:
+        with open("config.ini", "r", encoding="gbk") as f:
+            configEncoding = "gbk"
+    try:
         config = configparser.ConfigParser()
-        config.read("config.ini", encoding="utf-8")
+        config.read("config.ini", encoding=configEncoding)
         key_press_delay = config.getint("setting", "key_press_delay")
         key_release_delay = config.getint("setting", "key_release_delay")
         confirmationImg = config.get("setting", "confirmation_image")
