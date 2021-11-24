@@ -7,7 +7,7 @@ block_cipher = pyi_crypto.PyiBlockCipher(key='Je892g6554a5be20')
 a = Analysis(['app_locate.py'],
              pathex=['C:\\Users\\Microsoft\\AppData\\Local\\Programs\\Python\\Python38\\Lib\\site-packages\\cv2'],
              binaries=[],
-             datas=[('config.ini','./'),('slices.dat','./'),('slices_19141051','./')],
+             datas=[('config.ini','./'),('slices.dat','./'),('slices_19141051.dat','./')],
              hiddenimports=[],
              hookspath=[],
              hooksconfig={},
